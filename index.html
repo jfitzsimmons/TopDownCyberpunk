@@ -1,0 +1,555 @@
+<style>
+    div {
+      position: fixed;
+      opacity: 1;
+      background: #000;
+      height: 100vh; 
+      width: 100vw;
+    }
+</style>
+
+<body style="padding: 0; margin:0;"> 
+
+    <div id="fader">
+        <canvas id="canvas1">
+            Sorry, your browser does not support canvas.
+        </canvas>
+    </div>
+
+    <script>
+        const canvas=document.getElementById("canvas1");
+        const ctx=canvas.getContext("2d");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        const rndmRng = (h, l) => Math.random() * (h - l) + l;
+        const cx = w*rndmRng(.8,.2);
+        const cy = h*rndmRng(.8,.2);
+        const distanceToC = (px,py) => Math.sqrt((Math.pow(px-cx,2))+(Math.pow(py-cy,2)));
+        const angleDeg = (ny,nx) => Math.atan2(ny - cy, nx - cx) * 180 / Math.PI;
+        const stereo = (axis,center) => (axis-center < 0) ? -1 : 1;
+        const axisToC = (axis,center) => Math.abs(axis-center);
+        const colorsB = [['rgba(10, 205, 177, .5)','rgba(38, 188, 231, .5)','rgba(20, 94, 116, .5)','rgba(30, 255, 255, .5)'],
+                         ['rgba(255, 154, 77, .5)','rgba(213, 2, 75, .5)','rgba(107, 1, 37, .5)','rgba(255, 247, 42, .5)']]
+
+        const colorsS = [['rgba(5, 20, 20, 0.5)','#00FFFF','rgba(0, 255, 255, .4)'],
+                         ['rgba(0, 26, 21, 0.5)','#00FFCF','rgba(0, 255, 207, .4)'],
+                         ['rgba(20, 16, 0, 0.5)','#EABD02','rgba(234, 189, 2, .4)'],
+                         ['rgba(15, 0, 2, 0.5)','#fd8b97','rgba(253, 139, 151, .4)']]
+        const colorsZ = [['#333134','#f8cdff','#be7edb'],['#353032','#ffa2d0','#dB7195'],['#313739','#c3feff','#75c2da']]
+        const splitH = rndmRng(.8,.2);
+        const splitV = rndmRng(.8,.2);
+        const zones = [
+            {x1: w*splitH+50, y1: h*splitV+50, x2: w+50, y2: h+50},
+            {x1: w*splitH+50, y1: -50, x2: w+50, y2: h*splitV-50},
+            {x1: -50, y1: -50, x2: w*splitH-50, y2: h*splitV-50},
+            {x1: -50, y1: h*splitV+50, x2: w*splitH-50, y2: h+50},
+        ]
+        let bZone = [];
+        let cs = Math.round(rndmRng(3,0));
+
+        function findNewPoint(x, y, angle, distance) {
+            var result = {};
+
+            result.x = Math.round(Math.cos(angle * Math.PI / 180) * distance + x);
+            result.y = Math.round(Math.sin(angle * Math.PI / 180) * distance + y);
+
+            return result;
+        }
+      
+        //street stripes
+        ctx.shadowBlur = 6;
+        ctx.shadowColor = colorsS[cs][1];
+        ctx.lineWidth = "10";
+        ctx.strokeStyle=colorsS[cs][1];
+        ctx.setLineDash([80,100]);
+        ctx.moveTo(zones[2].x2+25,-10);
+        ctx.lineTo(zones[2].x2+25,h+10);
+        ctx.moveTo(-10,zones[2].y2+25);
+        ctx.lineTo(w+10,zones[2].y2+25);
+        ctx.stroke();
+
+        //stop lines
+        ctx.lineWidth = "20";
+        ctx.setLineDash([100,130]);
+        ctx.shadowBlur = 0;
+        ctx.fillRect(zones[2].x2-90, zones[2].y2-90, 230, 230);
+
+        //crosswalks
+        ctx.shadowBlur = 6;
+        ctx.strokeRect(zones[2].x2-90, zones[2].y2-90, 230, 230);
+        ctx.lineWidth = "10";
+        ctx.setLineDash([6]);
+        ctx.fillRect(zones[2].x2-60, zones[2].y2-60, 170, 170);
+        ctx.strokeRect(zones[2].x2-60, zones[2].y2-60, 170, 170);
+        ctx.setLineDash([])
+        ctx.shadowBlur = 0;
+
+        function generateBuildings(z) {
+            let widthMax = 255;
+            let widthMin = 60;
+            let depthMax = 255;
+            let depthMin = 60; 
+            let bDepth = 0,bWidth = 0,widthCheck = 0,depthCheck = 0;
+            let maxAttempts = 150;
+            
+            while(depthMax > depthMin) {
+                let available = true;
+                bDepth = rndmRng(depthMax,depthMin);
+
+                let x = rndmRng(z.x2,z.x1),
+                    y = rndmRng(z.y2,z.y1);
+
+                y-=bDepth
+                if (y+bDepth > z.y2-50) y-=bDepth;
+                if (y-bDepth < z.y1 && z.y1 !== -50) y+=bDepth
+                bWidth = rndmRng(widthMax,widthMin);
+                if (x-bWidth < z.x1 && z.x1 !== -50) x+=bWidth
+                if (x > z.x2-50 && z.x2 < w) x-=bWidth
+                    
+                for(var point in bZone) {
+                    widthCheck = (bZone[point].width >= bWidth) ? bZone[point].width : bWidth;
+                    depthCheck = (bZone[point].depth >= bDepth) ? bZone[point].depth : bDepth;
+
+                    if(Math.abs(bZone[point].x-x) < widthCheck+rndmRng(20,0) && Math.abs(bZone[point].y-y) < depthCheck+rndmRng(20,0)) {
+                        available = false;
+                        break;
+                    }
+                }
+
+                if(available) {
+                    const bHeight =rndmRng(380,80);
+                    const rows = Math.floor(bHeight / rndmRng(50,25));
+                    const sideC = Math.floor(bDepth / rndmRng(20,14));
+                    const frontC = Math.floor(bWidth / rndmRng(20,14));
+                    const r2  = findNewPoint(x, y+(bDepth ), angleDeg(y+(bDepth ), x), bHeight);
+                    let hypotenuse = (r2.x-x)/Math.cos(Math.abs(angleDeg(y, x)) * (Math.PI / 180))
+                    const r1  = findNewPoint(x, y, angleDeg(y, x), hypotenuse);
+                    hypotenuse = Math.abs(y+(bDepth )-r2.y)/Math.sin(Math.abs(angleDeg(y+(bDepth ), x-bWidth)) * (Math.PI / 180))
+                    const r3  = findNewPoint(x-bWidth, y+(bDepth ), angleDeg(y+(bDepth ), x-bWidth), hypotenuse);
+                    const r4  = {x: r3.x, y: r1.y};
+                    let dy=0;
+                    let dx=0;
+
+                    if (y>=cy){        
+                        dy=y
+                    } else if(y<cy && y+bDepth>cy) { 
+                        dy=cy  
+                    } else {
+                        dy=y+bDepth
+                    }
+
+                    if (x<=cx){        
+                        dx=x
+                    } else if(x>cx && x-bWidth<cx) { 
+                        dx=cx  
+                    } else {
+                        dx=x-bWidth
+                    }
+
+                    let dxy = findNewPoint(dx, dy, angleDeg(dy, dx), bHeight/2);
+
+                    bZone.push({
+                        z,
+                        rows,
+                        sideC,
+                        frontC,
+                        r2,
+                        r1,
+                        r3,
+                        r4,
+                        x,
+                        y,
+                        width: bWidth,
+                        depth: bDepth,
+                        height: bHeight,
+                        dx,
+                        dy,
+                        distance: distanceToC(dx,dy),
+                        b1: {x: x, y: y},
+                        b2: {x: x, y: y+bDepth},
+                        b3: {x: x-bWidth, y: y+bDepth},
+                        b4: {x: x-bWidth, y: y},
+                    });
+                    maxAttempts +=75;
+                }
+
+                maxAttempts -= 1;
+                if (maxAttempts === 0) {
+                    depthMax -=5;
+                    widthMax -=5;
+                    maxAttempts=100;
+                }
+            }
+
+            let cz = Math.round(rndmRng(2,0));
+
+            // draw zones
+            ctx.lineWidth=2
+            ctx.fillStyle=colorsZ[cz][0];
+            ctx.strokeStyle=colorsS[cs][2];
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = colorsS[cs][1];
+            ctx.fillRect(z.x1, z.y1, z.x2, z.y2);
+            ctx.strokeRect(z.x1, z.y1, z.x2, z.y2);
+
+            // sidewalks
+            ctx.lineWidth=1
+            ctx.shadowBlur = 3;
+            let g1 = z.x1+10;
+            ctx.shadowColor = colorsZ[cz][1];
+            ctx.strokeStyle = colorsZ[cz][2];
+            while (g1 < z.x2-50) {
+                ctx.beginPath();
+                ctx.moveTo(g1,z.y1+3);
+                ctx.lineTo(g1,z.y2-53);
+                ctx.stroke();
+                g1+=10;
+            }
+            let g2 = z.y1+10;
+            while (g2 < z.y2-50) {
+                ctx.beginPath();
+                ctx.moveTo(z.x1+3,g2);
+                ctx.lineTo(z.x2-53,g2);
+                ctx.stroke();
+                g2+=10;
+            }
+            ctx.shadowBlur = 0;
+        }
+
+        zones.forEach((z,j) => {
+            generateBuildings(z);
+        });
+ 
+        const orderBy = (arr, props, orders) =>
+            [...arr].sort((a, b) =>
+                props.reduce((acc, prop, i) => {
+                if (acc === 0) {
+                    const [p1, p2] =
+                    orders && orders[i] === 'desc'
+                        ? [b[prop], a[prop]]
+                        : [a[prop], b[prop]];
+                    acc = p1 > p2 ? 1 : p1 < p2 ? -1 : 0;
+                }
+                return acc;
+                }, 0)
+            );
+
+        bZone = orderBy(bZone, ['distance'], ['desc']);
+
+        function drawRows(b,c) {
+            ctx.lineWidth=1;
+            ctx.fillStyle = 'rgba(255, 250, 233, .4)';
+
+            for (i=(b.height/b.rows); i<b.height-25; i+=b.height/b.rows) {
+                let rows1  = findNewPoint(b.x, b.y+(b.depth), angleDeg(b.y+(b.depth), b.x), i);
+                let hypotenuse = (rows1.x-b.x)/Math.cos(Math.abs(angleDeg(b.y, b.x)) * (Math.PI / 180))
+                let rows2  = findNewPoint(b.x, b.y, angleDeg(b.y, b.x), hypotenuse);
+                hypotenuse = Math.abs(b.y+(b.depth)-rows1.y)/Math.sin(Math.abs(angleDeg(b.y+(b.depth), b.x-b.width)) * (Math.PI / 180))
+                let rows3  = findNewPoint(b.x-b.width, b.y+(b.depth), angleDeg(b.y+(b.depth), b.x-b.width), hypotenuse);
+                let rows4  = {x: rows3.x, y: rows2.y};
+                
+                ctx.beginPath();
+                ctx.lineTo(rows2.x,rows2.y);
+                ctx.lineTo(rows1.x,rows1.y);
+                ctx.lineTo(rows3.x,rows3.y);
+                ctx.lineTo(rows4.x,rows4.y);
+                ctx.lineTo(rows2.x,rows2.y);
+                ctx.fill();
+                ctx.stroke();
+            }
+        }
+
+        function drawRightSide(b,c,sct) {           
+            ctx.beginPath();
+            ctx.moveTo(b.x,b.y);
+            ctx.lineTo(b.r1.x,b.r1.y);
+            ctx.lineTo(b.r2.x,b.r2.y);
+            ctx.lineTo(b.b2.x,b.b2.y);
+            ctx.lineTo(b.b1.x,b.b1.y);
+            ctx.stroke();
+            ctx.fillStyle = colorsB[c][1];
+            ctx.fill();
+
+            for (j=1; j<b.sideC; j++) {
+                ctx.beginPath();
+                ctx.moveTo(b.x,(b.y+((b.depth/b.sideC)*j)));
+                ctx.lineTo(b.r1.x,b.r1.y-sct*j);
+                ctx.stroke();
+            }
+        }
+
+        function drawLeftSide(b,c,sct) {
+            ctx.beginPath();
+            ctx.moveTo((b.x-b.width),b.y);
+            ctx.lineTo(b.r4.x,b.r4.y);
+            ctx.lineTo(b.r3.x,b.r3.y);
+            ctx.lineTo(b.b3.x,b.b3.y);
+            ctx.lineTo(b.b4.x,b.b4.y);
+            ctx.stroke();
+            ctx.fillStyle = colorsB[c][2];
+            ctx.fill();
+
+            for (j=1; j<b.sideC; j++) {
+                ctx.beginPath();
+                ctx.moveTo(b.x-b.width,(b.y+((b.depth/b.sideC)*j)));
+                ctx.lineTo(b.r4.x,b.r4.y-sct*j);
+                ctx.stroke();
+            }
+        }
+
+        function drawTower(b,c,a) {
+            ctx.beginPath();
+            let tx = 0;
+            let ty = 0;
+
+            if (a) {
+                tx = b.r1.x - (b.r1.x-b.r4.x)/2;
+                ty = b.r1.y+(Math.abs(b.r1.y-b.r2.y))/2;
+            } else {
+                tx = b.r4.x + rndmRng(b.width/2,30);
+                ty = b.r4.y + rndmRng(b.depth/2,30);
+            }
+
+            ctx.arc(tx, ty, 10, 0, 2 * Math.PI);
+            ctx.moveTo(tx,ty);
+            let tip  = findNewPoint(tx, ty, angleDeg(ty, tx), rndmRng(60,20));
+            ctx.lineTo(tip.x,tip.y);
+            
+            ctx.fillStyle = colorsS[c][2]; 
+            ctx.arc(tip.x, tip.y, 3, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+
+        function drawVent(b,mx,mn) {
+            let tx = b.r4.x+(b.r1.x-b.r4.x)/2 + rndmRng(17,-17);
+            let ty = b.r1.y+(Math.abs(b.r1.y-b.r2.y))/2 + rndmRng(17,-17);
+            let grid = {
+                x: tx+rndmRng(mx,mn),
+                y: ty+rndmRng(mx,mn),
+                w: (b.r1.x-b.r4.x)/rndmRng(4,2.5),
+                h: Math.abs(b.r1.y-b.r2.y)/rndmRng(4,2.5),
+                space: rndmRng(10,5),
+            }
+
+            ctx.lineWidth = 1;
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(17, 5, 21, .7)';
+            ctx.stroke();
+            ctx.lineWidth=1;
+            ctx.rect(grid.x, grid.y, grid.w, grid.h);
+            ctx.stroke();
+
+            let gv = grid.x+grid.space;
+            while (gv < grid.x+grid.w) {
+                ctx.beginPath();
+                ctx.moveTo(gv,grid.y);
+                ctx.lineTo(gv,grid.y+grid.h);
+                ctx.stroke();
+                gv+=grid.space;
+            }
+            let gh = grid.y+grid.space;
+            while (gh < grid.y+grid.h) {
+                ctx.beginPath();
+                ctx.moveTo(grid.x,gh);
+                ctx.lineTo(grid.x+grid.w,gh);
+                ctx.stroke();
+                gh+=grid.space;
+            }
+        }
+
+        function drawFront(b,c,fct) {
+            ctx.beginPath();
+            ctx.moveTo(b.x,b.y);
+            ctx.lineTo(b.r1.x,b.r1.y);
+            ctx.lineTo(b.r4.x,b.r4.y);
+            ctx.lineTo(b.b4.x,b.b4.y);
+            ctx.lineTo(b.b1.x,b.b1.y);
+            ctx.stroke();
+            ctx.fillStyle = colorsB[c][3];
+            ctx.fill();
+
+            for (i=1; i<b.frontC; i++) {
+                ctx.beginPath();
+                ctx.moveTo(b.x-(b.width/b.frontC)*i,b.y);
+                ctx.lineTo(b.r1.x-fct*i,b.r1.y);
+                ctx.stroke();
+            }
+        }
+
+        function drawBack(b,c,fct) {
+            ctx.beginPath();
+            ctx.moveTo(b.b2.x,b.b2.y);
+            ctx.lineTo(b.r2.x,b.r2.y);
+            ctx.lineTo(b.r3.x,b.r3.y);
+            ctx.lineTo(b.b3.x,b.b3.y);
+            ctx.lineTo(b.b2.x,b.b2.y);
+            ctx.stroke();
+            ctx.fillStyle = colorsB[c][0];
+            ctx.fill();
+
+            for (i=1; i<b.frontC; i++) {
+                ctx.beginPath();
+                ctx.moveTo(b.b2.x-(b.width/b.frontC)*i,b.b2.y);
+                ctx.lineTo(b.r2.x-fct*i,b.r2.y);
+                ctx.stroke();
+            }
+        }
+
+        function sidesLogic(b,c,sct) {
+            if (b.x-b.width > cx) {
+                    drawRightSide(b,c,sct);
+                    drawRows(b,c);
+                    drawLeftSide(b,c,sct);
+                } else if (b.x >= cx && b.x-b.width <= cx) {
+                    drawLeftSide(b,c,sct);
+                    drawRightSide(b,c,sct);
+                    drawRows(b,c);
+                } else {
+                    drawLeftSide(b,c,sct);
+                    drawRows(b,c);
+                    drawRightSide(b,c,sct);
+                }
+        }
+ 
+        bZone.forEach((b,j) => {
+            let ledge = rndmRng(15,5);
+            let c = Math.round(rndmRng(1,0));
+            let frontCtop = (b.r1.x-b.r3.x)/b.frontC;
+            let sideCtop = (b.r1.y-b.r2.y)/b.sideC;
+
+            //base
+            ctx.strokeStyle = '#110515';
+            ctx.lineWidth = 1;
+            ctx.fillStyle = '#8e778e';
+            ctx.beginPath();
+            ctx.moveTo(b.x,b.y);
+            ctx.lineTo(b.b2.x,b.b2.y);
+            ctx.lineTo(b.b3.x,b.b3.y);
+            ctx.lineTo(b.b4.x,b.b4.y);
+            ctx.lineTo(b.b1.x,b.b1.y); 
+            ctx.stroke();
+            ctx.fill();
+
+            ctx.shadowBlur = 1;
+            ctx.shadowColor = "#110515";
+            ctx.strokeStyle = 'rgba(17, 5, 21, 0.3)';
+            
+            if (b.y>=cy){        
+                drawBack(b,c,frontCtop); 
+                sidesLogic(b,c,sideCtop);
+                drawFront(b,c,frontCtop); 
+            } else if(b.y<cy && b.y+b.depth>cy) { 
+                drawFront(b,c,frontCtop); 
+                drawBack(b,c,frontCtop); 
+                sidesLogic(b,c,sideCtop);   
+            } else {
+                drawFront(b,c,frontCtop); 
+                sidesLogic(b,c,sideCtop);
+                drawBack(b,c,frontCtop); 
+            }
+
+            cs = Math.round(rndmRng(3,0));
+
+            //roof
+            ctx.beginPath();
+            ctx.lineWidth=3;
+            ctx.lineTo(b.r1.x,b.r1.y);
+            ctx.lineTo(b.r2.x,b.r2.y);
+            ctx.lineTo(b.r3.x,b.r3.y);
+            ctx.lineTo(b.r4.x,b.r4.y);
+            ctx.lineTo(b.r1.x,b.r1.y);
+            
+            ctx.fillStyle = colorsS[cs][0];
+            ctx.fill();
+
+            //roof inset
+            let farX = (axisToC(b.r1.x-(b.width/2),cx)/3.2+b.width+b.height/2+ledge)/28;
+            let farY = (axisToC(b.r1.y-(b.depth/2),cy)/3+b.depth+b.height/2+ledge)/26;
+            let newYb = (b.r1.y-(farY* stereo(b.r1.y,cy)) < b.r1.y+ledge)
+                ? b.r1.y+ledge
+                : b.r1.y-(farY* stereo(b.r1.y,cy));
+            let newYt = (b.r2.y-(farY* stereo(b.r2.y,cy)) > b.r2.y-ledge)
+                ? b.r2.y-ledge
+                : b.r2.y-(farY* stereo(b.r2.y,cy));
+            let newXr = (b.r1.x-(farX* stereo(b.r1.x,cx)) > b.r1.x-ledge)
+                ? b.r1.x-ledge
+                : b.r1.x-(farX* stereo(b.r1.x,cx));
+            let newXl = (b.r3.x-(farX* stereo(b.r3.x,cx)) < b.r3.x+ledge)
+                ? b.r3.x+ledge
+                : b.r3.x-(farX* stereo(b.r3.x,cx));
+
+            ctx.beginPath();
+            ctx.moveTo(newXr,newYb);
+            ctx.lineTo(newXr,newYt);
+            ctx.lineTo(newXl,newYt);
+            ctx.lineTo(newXl,newYb);
+            ctx.lineTo(newXr,newYb);
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 4;
+            ctx.shadowColor = "#FD8B97";
+            ctx.strokeStyle='rgba(253, 139, 151, .4)';
+            ctx.stroke();
+
+            //roof ledge
+            ctx.beginPath();
+            ctx.lineTo(b.r1.x-ledge,b.r1.y+(ledge));
+            ctx.lineTo(b.r2.x-ledge,b.r2.y-(ledge));
+            ctx.lineTo(b.r3.x+ledge,b.r3.y-(ledge));
+            ctx.lineTo(b.r4.x+ledge,b.r4.y+(ledge));
+            ctx.lineTo(b.r1.x-ledge,b.r1.y+(ledge));
+            ctx.lineWidth = 3;
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = colorsS[cs][0];
+            ctx.strokeStyle = colorsS[cs][2];
+            ctx.stroke();
+
+            if (b.r1.x-b.r4.x < 110 || Math.abs(b.r1.y-b.r2.y) < 110) {
+                drawTower(b, cs, true);
+            } else if (b.r1.x-b.r4.x < 170 || Math.abs(b.r1.y-b.r2.y) < 170) {
+                drawVent(b, -15, -22);
+            } else {
+                drawTower(b, cs, false);
+                drawVent(b, -5, -30);
+            }
+        /*   */
+            ctx.fillStyle = 'white';
+            ctx.font = '11px serif';
+            //ctx.fillText(`index: ${j}`, b.r2.x-14, b.r2.y+15);
+       
+        });
+        
+        //sunset
+        let gradient = ctx.createLinearGradient(w,h*rndmRng(.4,0),0,h*rndmRng(1,.6));
+        gradient.addColorStop(0, 'rgba(255, 246, 204, .2)');
+        gradient.addColorStop(rndmRng(.66,.33), 'transparent');
+        gradient.addColorStop(1, 'rgba(7, 35, 44, .2)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, w, h);
+
+        function points() {
+            ctx.strokeStyle = 'green';
+            let edge = (w>h) ? w : h;
+
+            let lines = 24;
+            for(var i = 0; i < lines; i++) {
+                let x1 = cx + Math.cos(2 * Math.PI * i / lines);
+                let y1 = cy + Math.sin(2 * Math.PI * i / lines);  
+                let x2 = cx + edge * Math.cos(2 * Math.PI * i / lines);
+                let y2 = cy + edge * Math.sin(2 * Math.PI * i / lines);   
+                ctx.beginPath();
+                ctx.moveTo(x1,y1);
+                ctx.lineTo(x2,y2);
+                ctx.stroke();
+
+                ctx.fillStyle = 'white';
+                ctx.font = '13px serif';
+                //ctx.fillText(`cx: ${Math.round(cx)} | cy: ${Math.round(cy)}`, cx, cy);
+            }
+        }
+
+        //points()
+
+    </script>
+</body>
